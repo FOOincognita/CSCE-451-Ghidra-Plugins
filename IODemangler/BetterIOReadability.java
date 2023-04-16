@@ -13,6 +13,9 @@ import java.util.ArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Ghidra script that takes the current function that is tabbed into and for every selected pattern, will add comments surrounding the blocks of code with a more legible format.
+ */
 public class BetterIOReadability extends GhidraScript {
 
     public void run() throws Exception {

@@ -19,6 +19,9 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Ghidra script that takes the current function that is tabbed into and replaces the selected options with more legible equivalents, then saves the result to the chosen file.
+ */
 public class BetterIOExporter extends GhidraScript {
 
     public void run() throws Exception {
@@ -112,7 +115,18 @@ public class BetterIOExporter extends GhidraScript {
                 multiline = new StringBuilder("cout << ");
 
             } else {
-                newLines.add(line);
+                line = line.replaceAll("basic_string_char_std__char_traits_char__std__allocator_char__", "basic_string<char,std::char_traits<char>,std::allocator<char>>");
+                line = line.replaceAll("basic_ostream_char_std__char_traits_char__", "basic_ostream<char,std::char_traits<char>>");
+                line = line.replaceAll("basic_istream_char_std__char_traits_char__", "basic_istream<char,std::char_traits<char>>");
+                line = line.replaceAll("std::basic_istream<char,std::char_traits<char>>::operator__", "std::basic_istream<char,std::char_traits<char>>::operator>>");
+                line = line.replaceAll("basic_string_std__allocator_char__", "basic_string<std::allocator<char>");
+                line = line.replaceAll("std::allocator<char>::_allocator", "std::allocator<char>::~allocator");
+                line = line.replaceAll("std::operator__\\(\\(basic_istream", "std::operator>>((basic_istream");
+                line = line.replaceAll(" = std::operator__", " = std::operator<<");
+                line = line.replaceAll("std::operator__\\(\\(basic_ostream", "std::operator<<((basic_ostream");
+//                line = line.replaceAll();
+                if(line.length() > 3)
+                    newLines.add(line + ";");
             }
         }
         try (FileWriter writer = new FileWriter(saveTo)) {

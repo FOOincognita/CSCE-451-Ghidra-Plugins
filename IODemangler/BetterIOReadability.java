@@ -10,19 +10,18 @@ import ghidra.util.task.TaskMonitor;
 
 import javax.swing.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Ghidra script that takes the current function that is tabbed into and for every selected pattern, will add comments surrounding the blocks of code with a more legible format.
- */
 public class BetterIOReadability extends GhidraScript {
 
     public void run() throws Exception {
         JCheckBox coutBox = new JCheckBox("cout");
         JCheckBox cinBox = new JCheckBox("cin");
         Object[] params = {coutBox, cinBox};
-        int result = JOptionPane.showConfirmDialog(null, params, "Select IO Improvement Options", JOptionPane.DEFAULT_OPTION);
+        /*int result = */
+        JOptionPane.showConfirmDialog(null, params, "Select IO Improvement Options", JOptionPane.DEFAULT_OPTION);
         boolean formatCin = cinBox.isSelected();
         boolean formatCout = coutBox.isSelected();
         // Get the current function
@@ -42,13 +41,13 @@ public class BetterIOReadability extends GhidraScript {
         DecompInterface decomp = new DecompInterface();
         decomp.openProgram(currentProgram);
         DecompileResults res = decomp.decompileFunction(function, 300, TaskMonitor.DUMMY);
-        println(res.getDecompiledFunction().getC());
+//        println(res.getDecompiledFunction().getC());
         String formatted = res.getDecompiledFunction().getC();
         formatted = formatted.replaceAll("(?!;)\n\\s+", "");
         formatted = formatted.substring(formatted.indexOf('{')+1);
         formatted = formatted.substring(0, formatted.lastIndexOf('}'));
-        String[] lines = formatted.split(";");
-//        println(Arrays.toString(lines));
+        String[] lines = formatted.split("((?<=[;{}]))");
+        println(Arrays.toString(lines));
         ArrayList<Pair<String, Integer>> couts = new ArrayList<>();
         ArrayList<Pair<String, Integer>> cins = new ArrayList<>();
         StringBuilder cinLine = new StringBuilder("cin >> ");
@@ -58,16 +57,20 @@ public class BetterIOReadability extends GhidraScript {
         int cinParts = 0;
         for(String line : lines){
 //            println(line);
-            if(formatCin && line.contains("basic_istream") && !(line.indexOf("basic_istream_char_std__char_traits_char__ *") > 0 && line.indexOf("basic_istream_char_std__char_traits_char__ *") < 3)){
+            if (line.lastIndexOf('{') == line.length()-1 || line.length() < 2){
+                continue;
+            }
+            else if(formatCin && line.contains("basic_istream") && !(line.indexOf("basic_istream_char_std__char_traits_char__ *") > 0 && line.indexOf("basic_istream_char_std__char_traits_char__ *") < 3)){
 //                println(String.valueOf(line.matches("basic_istream_char_std__char_traits_char__ \\*.*")));
 //                println(line);
 //                println("saved line: " + line.substring(line.lastIndexOf(",&") + 2, line.length()-1));
 //                println("cin detected");
                 cinParts++;
-                if (line.lastIndexOf(",&") > line.lastIndexOf(",(basic_string *)"))
-                    cinLine.append(line, line.lastIndexOf(",&")+2, line.length()-1);
-                else
-                    cinLine.append(line, line.lastIndexOf(",(basic_string *)")+17, line.length()-1);
+                line = line.replaceAll(",\\(.*\\*\\)", ",&");
+//                if (line.lastIndexOf(",&") > line.lastIndexOf(",(basic_string *)"))
+                cinLine.append(line, line.lastIndexOf(",&")+2, line.length()-1);
+//                else
+//                    cinLine.append(line, line.lastIndexOf(",(basic_string *)")+17, line.length()-1);
                 if (line.contains("=")){
                     cinLine.append(" >> ");
                 }
@@ -78,8 +81,9 @@ public class BetterIOReadability extends GhidraScript {
                     cinParts = 0;
                 }
             }
-            else if(formatCout && line.matches("^\\s*pbVar\\d =.*")){
-//                println(line);
+//            else if(formatCout && line.matches("\\s*p\\wVar\\d =.*")){
+            else if(formatCout && line.contains(" = ") && (line.contains("operator__") || (line.contains("operator<<")))) {
+//                println(line);)
 //                println("pbvar match");
                 lastArgument(multiline, line);
                 multiline.append(" << ");
@@ -171,7 +175,7 @@ public class BetterIOReadability extends GhidraScript {
     }
 
     private void lastArgument(StringBuilder multiline, String line) {
-        Pattern lastComma = Pattern.compile("(,\".*\"\\))");
+        Pattern lastComma = Pattern.compile(",\\s*\".*\"");
         Matcher finder = lastComma.matcher(line);
         int lastIndex = -1;
         while(finder.find(Math.max(lastIndex+1, 0))){
@@ -182,6 +186,6 @@ public class BetterIOReadability extends GhidraScript {
             lastIndex = line.lastIndexOf(',');
         }
 //        println("done");
-        multiline.append(line, lastIndex + 1, line.length()-1);
+        multiline.append(line, lastIndex + 1, line.length()-2);
     }
 }

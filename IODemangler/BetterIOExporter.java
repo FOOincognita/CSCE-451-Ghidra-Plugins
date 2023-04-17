@@ -19,9 +19,6 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Ghidra script that takes the current function that is tabbed into and replaces the selected options with more legible equivalents, then saves the result to the chosen file.
- */
 public class BetterIOExporter extends GhidraScript {
 
     public void run() throws Exception {
@@ -56,7 +53,7 @@ public class BetterIOExporter extends GhidraScript {
         String start = formatted.substring(0, formatted.indexOf('{')+1);
         formatted = formatted.substring(formatted.indexOf('{')+1);
         formatted = formatted.substring(0, formatted.lastIndexOf('}'));
-        String[] lines = formatted.split(";");
+        String[] lines = formatted.split("(?<=[;{}])");
 //        println(Arrays.toString(lines));
         ArrayList<Pair<String, Integer>> couts = new ArrayList<>();
         ArrayList<Pair<String, Integer>> cins = new ArrayList<>();
@@ -73,16 +70,31 @@ public class BetterIOExporter extends GhidraScript {
         ArrayList<String> newLines = new ArrayList<>();
         for (String line : lines) {
 //            println(line);
-            if (formatCin && line.contains("basic_istream") && !(line.indexOf("basic_istream_char_std__char_traits_char__ *") > 0 && line.indexOf("basic_istream_char_std__char_traits_char__ *") < 3)) {
+            if(line.lastIndexOf('{') == line.length()-1 || line.length() < 2) {
+                line = line.replaceAll("basic_string_char_std__char_traits_char__std__allocator_char__", "basic_string<char,std::char_traits<char>,std::allocator<char>>");
+                line = line.replaceAll("basic_ostream_char_std__char_traits_char__", "basic_ostream<char,std::char_traits<char>>");
+                line = line.replaceAll("basic_istream_char_std__char_traits_char__", "basic_istream<char,std::char_traits<char>>");
+                line = line.replaceAll("std::basic_istream<char,std::char_traits<char>>::operator__", "std::basic_istream<char,std::char_traits<char>>::operator>>");
+                line = line.replaceAll("basic_string_std__allocator_char__", "basic_string<std::allocator<char>");
+                line = line.replaceAll("std::allocator<char>::_allocator", "std::allocator<char>::~allocator");
+                line = line.replaceAll("std::operator__\\(\\(basic_istream", "std::operator>>((basic_istream");
+                line = line.replaceAll(" = std::operator__", " = std::operator<<");
+                line = line.replaceAll("std::operator__\\(\\(basic_ostream", "std::operator<<((basic_ostream");
+//                line = line.replaceAll();
+//                if(line.length() > 3)
+                newLines.add(line);
+            }
+            else if (formatCin && line.contains("basic_istream") && !(line.indexOf("basic_istream_char_std__char_traits_char__ *") > 0 && line.indexOf("basic_istream_char_std__char_traits_char__ *") < 3)) {
 //                println(String.valueOf(line.matches("basic_istream_char_std__char_traits_char__ \\*.*")));
 //                println(line);
 //                println("saved line: " + line.substring(line.lastIndexOf(",&") + 2, line.length()-1));
 //                println("cin detected");
                 cinParts++;
-                if (line.lastIndexOf(",&") > line.lastIndexOf(",(basic_string *)"))
-                    cinLine.append(line, line.lastIndexOf(",&")+2, line.length()-1);
-                else
-                    cinLine.append(line, line.lastIndexOf(",(basic_string *)")+17, line.length()-1);
+                line = line.replaceAll(",\\(.*\\*\\)", ",&");
+//                if (line.lastIndexOf(",&") > line.lastIndexOf(",(basic_string *)"))
+                cinLine.append(line, line.lastIndexOf(",&") + 2, line.length() - 1);
+//                else
+//                    cinLine.append(line, line.lastIndexOf(",(basic_string *)") + 17, line.length() - 1);
                 if (line.contains("=")) {
                     cinLine.append(" >> ");
                 } else {
@@ -91,7 +103,10 @@ public class BetterIOExporter extends GhidraScript {
                     cinLine = new StringBuilder("cin >> ");
                     cinParts = 0;
                 }
-            } else if (formatCout && line.matches("^\\s*pbVar\\d =.*")) {
+//            } else if (formatCout && line.matches("^\\s*p\\wVar\\d =.*")) {
+            }
+            else if(formatCout && line.contains("=") && (line.contains("operator__") || (line.contains("operator<<")))) {
+
 //                println(line);
 //                println("pbvar match");
                 lastArgument(multiline, line);
@@ -125,8 +140,8 @@ public class BetterIOExporter extends GhidraScript {
                 line = line.replaceAll(" = std::operator__", " = std::operator<<");
                 line = line.replaceAll("std::operator__\\(\\(basic_ostream", "std::operator<<((basic_ostream");
 //                line = line.replaceAll();
-                if(line.length() > 3)
-                    newLines.add(line + ";");
+//                if(line.length() > 3)
+                newLines.add(line);
             }
         }
         try (FileWriter writer = new FileWriter(saveTo)) {
@@ -140,7 +155,7 @@ public class BetterIOExporter extends GhidraScript {
     }
 
     private void lastArgument(StringBuilder multiline, String line) {
-        Pattern lastComma = Pattern.compile("(,\".*\"\\))");
+        Pattern lastComma = Pattern.compile("(,\\s*\".*\")");
         Matcher finder = lastComma.matcher(line);
         int lastIndex = -1;
         while(finder.find(Math.max(lastIndex+1, 0))){
